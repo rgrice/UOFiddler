@@ -15,6 +15,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using Ultima;
@@ -683,42 +684,72 @@ namespace UoFiddler.Controls.UserControls
 
         private void Extract_Image_ClickBmp(object sender, EventArgs e)
         {
-            if (_selectedGraphicId == -1)
+            if (ItemsTileView.SelectedIndices.Count == 0)
             {
                 return;
             }
 
-            ExportItemImage(_selectedGraphicId, ImageFormat.Bmp);
+            if (ItemsTileView.SelectedIndices.Count == 1)
+            {
+                ExportItemImage(_itemList[ItemsTileView.SelectedIndices[0]], ImageFormat.Bmp);
+            }
+            else
+            {
+                ExportMultipleItemImages(ImageFormat.Bmp);
+            }
         }
 
         private void Extract_Image_ClickTiff(object sender, EventArgs e)
         {
-            if (_selectedGraphicId == -1)
+            if (ItemsTileView.SelectedIndices.Count == 0)
             {
                 return;
             }
 
-            ExportItemImage(_selectedGraphicId, ImageFormat.Tiff);
+            if (ItemsTileView.SelectedIndices.Count == 1)
+            {
+                ExportItemImage(_itemList[ItemsTileView.SelectedIndices[0]], ImageFormat.Tiff);
+            }
+            else
+            {
+                ExportMultipleItemImages(ImageFormat.Tiff);
+            }
         }
 
         private void Extract_Image_ClickJpg(object sender, EventArgs e)
         {
-            if (_selectedGraphicId == -1)
+            if (ItemsTileView.SelectedIndices.Count == 0)
             {
                 return;
             }
 
-            ExportItemImage(_selectedGraphicId, ImageFormat.Jpeg);
+            if (ItemsTileView.SelectedIndices.Count == 1)
+            {
+                ExportItemImage(_itemList[ItemsTileView.SelectedIndices[0]], ImageFormat.Jpeg);
+            }
+            else
+            {
+                ExportMultipleItemImages(ImageFormat.Jpeg);
+            }
         }
 
         private void Extract_Image_ClickPng(object sender, EventArgs e)
         {
-            if (_selectedGraphicId == -1)
+            if (ItemsTileView.SelectedIndices.Count == 0)
             {
                 return;
             }
 
-            ExportItemImage(_selectedGraphicId, ImageFormat.Png);
+            if (ItemsTileView.SelectedIndices.Count == 1)
+            {
+                // Single item - use existing method for immediate feedback
+                ExportItemImage(_itemList[ItemsTileView.SelectedIndices[0]], ImageFormat.Png);
+            }
+            else
+            {
+                // Multiple items - export all selected
+                ExportMultipleItemImages(ImageFormat.Png);
+            }
         }
 
         private static void ExportItemImage(int index, ImageFormat imageFormat)
@@ -729,7 +760,14 @@ namespace UoFiddler.Controls.UserControls
             }
 
             string fileExtension = Utils.GetFileExtensionFor(imageFormat);
-            string fileName = Path.Combine(Options.OutputPath, $"Item 0x{index:X4}.{fileExtension}");
+            string itemName = TileData.ItemTable[index].Name;
+            itemName = Path.GetInvalidFileNameChars().Aggregate(itemName, (current, c) => current.Replace(c, '_'));
+            
+            string itemsFolder = Path.Combine(Options.OutputPath, "items");
+            string itemFolder = Path.Combine(itemsFolder, itemName);
+            Directory.CreateDirectory(itemFolder);
+            
+            string fileName = Path.Combine(itemFolder, $"{itemName}_{index:X4}.{fileExtension}");
 
             using (Bitmap bit = new Bitmap(Art.GetStatic(index)))
             {
@@ -737,6 +775,61 @@ namespace UoFiddler.Controls.UserControls
             }
 
             MessageBox.Show($"Item saved to {fileName}", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information,
+                MessageBoxDefaultButton.Button1);
+        }
+
+        private void ExportMultipleItemImages(ImageFormat imageFormat)
+        {
+            var selectedIndices = ItemsTileView.SelectedIndices;
+            if (selectedIndices.Count == 0)
+            {
+                return;
+            }
+
+            string fileExtension = Utils.GetFileExtensionFor(imageFormat);
+            int exportedCount = 0;
+            int skippedCount = 0;
+
+            foreach (int selectedIndex in selectedIndices)
+            {
+                int itemId = _itemList[selectedIndex];
+                
+                if (!Art.IsValidStatic(itemId))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                string itemName = TileData.ItemTable[itemId].Name;
+                itemName = Path.GetInvalidFileNameChars().Aggregate(itemName, (current, c) => current.Replace(c, '_'));
+                
+                string itemsFolder = Path.Combine(Options.OutputPath, "items");
+                string itemFolder = Path.Combine(itemsFolder, itemName);
+                Directory.CreateDirectory(itemFolder);
+                
+                string fileName = Path.Combine(itemFolder, $"{itemName}_{itemId:X4}.{fileExtension}");
+
+                try
+                {
+                    using (Bitmap bit = new Bitmap(Art.GetStatic(itemId)))
+                    {
+                        bit.Save(fileName, imageFormat);
+                        exportedCount++;
+                    }
+                }
+                catch
+                {
+                    skippedCount++;
+                }
+            }
+
+            string message = $"Exported {exportedCount} items to {Options.OutputPath}";
+            if (skippedCount > 0)
+            {
+                message += $"\n{skippedCount} items were skipped (invalid or missing)";
+            }
+
+            MessageBox.Show(message, "Export Complete", MessageBoxButtons.OK, MessageBoxIcon.Information,
                 MessageBoxDefaultButton.Button1);
         }
 
@@ -804,7 +897,14 @@ namespace UoFiddler.Controls.UserControls
                             continue;
                         }
 
-                        string fileName = Path.Combine(dialog.SelectedPath, $"Item 0x{index:X4}.{fileExtension}");
+                        string itemName = TileData.ItemTable[index].Name;
+                        itemName = Path.GetInvalidFileNameChars().Aggregate(itemName, (current, c) => current.Replace(c, '_'));
+                        
+                        string itemsFolder = Path.Combine(dialog.SelectedPath, "items");
+                        string itemFolder = Path.Combine(itemsFolder, itemName);
+                        Directory.CreateDirectory(itemFolder);
+                        
+                        string fileName = Path.Combine(itemFolder, $"{itemName}_{index:X4}.{fileExtension}");
                         var artBitmap = Art.GetStatic(index);
                         if (artBitmap is null)
                         {

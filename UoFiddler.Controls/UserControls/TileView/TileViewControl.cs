@@ -22,6 +22,7 @@ namespace UoFiddler.Controls.UserControls.TileView
         public IndicesCollection SelectedIndices = new IndicesCollection();
 
         private int _focusIndex = -1;
+        private int _lastSelectedIndex = -1;
 
         /// <summary>
         /// Get or Set SelectedIndex, setting this property to -1 will remove selection, -2 is reserved for "do nothing".
@@ -486,6 +487,7 @@ namespace UoFiddler.Controls.UserControls.TileView
                         else
                         {
                             SelectedIndices.Add(index);
+                            _lastSelectedIndex = index;
                         }
                     }
                     else
@@ -494,15 +496,41 @@ namespace UoFiddler.Controls.UserControls.TileView
                         {
                             SelectedIndices.Clear();
                             SelectedIndices.Add(index);
+                            _lastSelectedIndex = index;
                         }
                     }
 
                     break;
+                    
+                case Keys.Shift:
+                    if (_multiSelect && _lastSelectedIndex != -1)
+                    {
+                        // Range selection from _lastSelectedIndex to index
+                        SelectedIndices.Clear();
+                        int startIndex = Math.Min(_lastSelectedIndex, index);
+                        int endIndex = Math.Max(_lastSelectedIndex, index);
+                        
+                        for (int i = startIndex; i <= endIndex; i++)
+                        {
+                            SelectedIndices.Add(i);
+                        }
+                    }
+                    else
+                    {
+                        // No previous selection or not in multi-select mode
+                        SelectedIndices.Clear();
+                        SelectedIndices.Add(index);
+                        _lastSelectedIndex = index;
+                    }
+
+                    break;
+                    
                 default:
                     if (!SelectedIndices.Contains(index))
                     {
                         SelectedIndices.Clear();
                         SelectedIndices.Add(index);
+                        _lastSelectedIndex = index;
                     }
 
                     break;

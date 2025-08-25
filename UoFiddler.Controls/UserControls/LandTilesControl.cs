@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using Ultima;
 using UoFiddler.Controls.Classes;
@@ -489,42 +490,70 @@ namespace UoFiddler.Controls.UserControls
 
         private void OnClickExportBmp(object sender, EventArgs e)
         {
-            if (_selectedGraphicId < 0)
+            if (LandTilesTileView.SelectedIndices.Count == 0)
             {
                 return;
             }
 
-            ExportLandTileImage(_selectedGraphicId, ImageFormat.Bmp);
+            if (LandTilesTileView.SelectedIndices.Count == 1)
+            {
+                ExportLandTileImage(_tileList[LandTilesTileView.SelectedIndices[0]], ImageFormat.Bmp);
+            }
+            else
+            {
+                ExportMultipleLandTileImages(ImageFormat.Bmp);
+            }
         }
 
         private void OnClickExportTiff(object sender, EventArgs e)
         {
-            if (_selectedGraphicId < 0)
+            if (LandTilesTileView.SelectedIndices.Count == 0)
             {
                 return;
             }
 
-            ExportLandTileImage(_selectedGraphicId, ImageFormat.Tiff);
+            if (LandTilesTileView.SelectedIndices.Count == 1)
+            {
+                ExportLandTileImage(_tileList[LandTilesTileView.SelectedIndices[0]], ImageFormat.Tiff);
+            }
+            else
+            {
+                ExportMultipleLandTileImages(ImageFormat.Tiff);
+            }
         }
 
         private void OnClickExportJpg(object sender, EventArgs e)
         {
-            if (_selectedGraphicId < 0)
+            if (LandTilesTileView.SelectedIndices.Count == 0)
             {
                 return;
             }
 
-            ExportLandTileImage(_selectedGraphicId, ImageFormat.Jpeg);
+            if (LandTilesTileView.SelectedIndices.Count == 1)
+            {
+                ExportLandTileImage(_tileList[LandTilesTileView.SelectedIndices[0]], ImageFormat.Jpeg);
+            }
+            else
+            {
+                ExportMultipleLandTileImages(ImageFormat.Jpeg);
+            }
         }
 
         private void OnClickExportPng(object sender, EventArgs e)
         {
-            if (_selectedGraphicId < 0)
+            if (LandTilesTileView.SelectedIndices.Count == 0)
             {
                 return;
             }
 
-            ExportLandTileImage(_selectedGraphicId, ImageFormat.Png);
+            if (LandTilesTileView.SelectedIndices.Count == 1)
+            {
+                ExportLandTileImage(_tileList[LandTilesTileView.SelectedIndices[0]], ImageFormat.Png);
+            }
+            else
+            {
+                ExportMultipleLandTileImages(ImageFormat.Png);
+            }
         }
 
         private static void ExportLandTileImage(int index, ImageFormat imageFormat)
@@ -535,7 +564,14 @@ namespace UoFiddler.Controls.UserControls
             }
 
             string fileExtension = Utils.GetFileExtensionFor(imageFormat);
-            string fileName = Path.Combine(Options.OutputPath, $"Landtile 0x{index:X4}.{fileExtension}");
+            string tileName = TileData.LandTable[index].Name;
+            tileName = Path.GetInvalidFileNameChars().Aggregate(tileName, (current, c) => current.Replace(c, '_'));
+            
+            string tilesFolder = Path.Combine(Options.OutputPath, "tiles");
+            string tileFolder = Path.Combine(tilesFolder, tileName);
+            Directory.CreateDirectory(tileFolder);
+            
+            string fileName = Path.Combine(tileFolder, $"{tileName}_{index:X4}.{fileExtension}");
 
             using (Bitmap bit = new Bitmap(Art.GetLand(index)))
             {
@@ -543,6 +579,61 @@ namespace UoFiddler.Controls.UserControls
             }
 
             MessageBox.Show($"Landtile saved to {fileName}", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information,
+                MessageBoxDefaultButton.Button1);
+        }
+
+        private void ExportMultipleLandTileImages(ImageFormat imageFormat)
+        {
+            var selectedIndices = LandTilesTileView.SelectedIndices;
+            if (selectedIndices.Count == 0)
+            {
+                return;
+            }
+
+            string fileExtension = Utils.GetFileExtensionFor(imageFormat);
+            int exportedCount = 0;
+            int skippedCount = 0;
+
+            foreach (int selectedIndex in selectedIndices)
+            {
+                int tileId = _tileList[selectedIndex];
+                
+                if (!Art.IsValidLand(tileId))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                string tileName = TileData.LandTable[tileId].Name;
+                tileName = Path.GetInvalidFileNameChars().Aggregate(tileName, (current, c) => current.Replace(c, '_'));
+                
+                string tilesFolder = Path.Combine(Options.OutputPath, "tiles");
+                string tileFolder = Path.Combine(tilesFolder, tileName);
+                Directory.CreateDirectory(tileFolder);
+                
+                string fileName = Path.Combine(tileFolder, $"{tileName}_{tileId:X4}.{fileExtension}");
+
+                try
+                {
+                    using (Bitmap bit = new Bitmap(Art.GetLand(tileId)))
+                    {
+                        bit.Save(fileName, imageFormat);
+                        exportedCount++;
+                    }
+                }
+                catch
+                {
+                    skippedCount++;
+                }
+            }
+
+            string message = $"Exported {exportedCount} land tiles to {Options.OutputPath}";
+            if (skippedCount > 0)
+            {
+                message += $"\n{skippedCount} tiles were skipped (invalid or missing)";
+            }
+
+            MessageBox.Show(message, "Export Complete", MessageBoxButtons.OK, MessageBoxIcon.Information,
                 MessageBoxDefaultButton.Button1);
         }
 
@@ -604,7 +695,14 @@ namespace UoFiddler.Controls.UserControls
                         continue;
                     }
 
-                    string fileName = Path.Combine(dialog.SelectedPath, $"Landtile 0x{index:X4}.{fileExtension}");
+                    string tileName = TileData.LandTable[index].Name;
+                    tileName = Path.GetInvalidFileNameChars().Aggregate(tileName, (current, c) => current.Replace(c, '_'));
+                    
+                    string tilesFolder = Path.Combine(dialog.SelectedPath, "tiles");
+                    string tileFolder = Path.Combine(tilesFolder, tileName);
+                    Directory.CreateDirectory(tileFolder);
+                    
+                    string fileName = Path.Combine(tileFolder, $"{tileName}_{index:X4}.{fileExtension}");
                     var landTile = Art.GetLand(index);
                     if (landTile is null)
                     {

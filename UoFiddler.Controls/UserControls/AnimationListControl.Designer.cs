@@ -44,6 +44,8 @@ namespace UoFiddler.Controls.UserControls
             TreeViewMobs = new System.Windows.Forms.TreeView();
             contextMenuStrip2 = new System.Windows.Forms.ContextMenuStrip(components);
             removeToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            exportAllFramesAsPngToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            exportAllAnimationsAsPngToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             tabControl1 = new System.Windows.Forms.TabControl();
             tabPage1 = new System.Windows.Forms.TabPage();
             tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
@@ -144,16 +146,31 @@ namespace UoFiddler.Controls.UserControls
             // 
             // contextMenuStrip2
             // 
-            contextMenuStrip2.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { removeToolStripMenuItem });
+            contextMenuStrip2.Items.AddRange(new System.Windows.Forms.ToolStripItem[] { removeToolStripMenuItem, exportAllFramesAsPngToolStripMenuItem, exportAllAnimationsAsPngToolStripMenuItem });
             contextMenuStrip2.Name = "contextMenuStrip2";
-            contextMenuStrip2.Size = new System.Drawing.Size(118, 26);
+            contextMenuStrip2.Size = new System.Drawing.Size(230, 70);
+            contextMenuStrip2.Opening += ContextMenuStrip2_Opening;
             // 
             // removeToolStripMenuItem
             // 
             removeToolStripMenuItem.Name = "removeToolStripMenuItem";
-            removeToolStripMenuItem.Size = new System.Drawing.Size(117, 22);
+            removeToolStripMenuItem.Size = new System.Drawing.Size(202, 22);
             removeToolStripMenuItem.Text = "Remove";
             removeToolStripMenuItem.Click += OnClickRemove;
+            // 
+            // exportAllFramesAsPngToolStripMenuItem
+            // 
+            exportAllFramesAsPngToolStripMenuItem.Name = "exportAllFramesAsPngToolStripMenuItem";
+            exportAllFramesAsPngToolStripMenuItem.Size = new System.Drawing.Size(229, 22);
+            exportAllFramesAsPngToolStripMenuItem.Text = "Export All Frames as PNG";
+            exportAllFramesAsPngToolStripMenuItem.Click += OnClickExportAllFramesAsPng;
+            // 
+            // exportAllAnimationsAsPngToolStripMenuItem
+            // 
+            exportAllAnimationsAsPngToolStripMenuItem.Name = "exportAllAnimationsAsPngToolStripMenuItem";
+            exportAllAnimationsAsPngToolStripMenuItem.Size = new System.Drawing.Size(229, 22);
+            exportAllAnimationsAsPngToolStripMenuItem.Text = "Export All Animations as PNG";
+            exportAllAnimationsAsPngToolStripMenuItem.Click += OnClickExportAllAnimationsAsPng;
             // 
             // tabControl1
             // 
@@ -611,6 +628,8 @@ namespace UoFiddler.Controls.UserControls
         private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
         private System.Windows.Forms.ContextMenuStrip contextMenuStrip2;
         private System.Windows.Forms.ContextMenuStrip contextMenuStrip3;
+        private System.Windows.Forms.ToolStripMenuItem exportAllAnimationsAsPngToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem exportAllFramesAsPngToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exportFrameToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem extractAnimationToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem extractImageToolStripMenuItem;

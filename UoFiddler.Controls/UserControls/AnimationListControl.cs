@@ -649,6 +649,39 @@ namespace UoFiddler.Controls.UserControls
             LoadListView();
         }
 
+        private void ContextMenuStrip2_Opening(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            TreeNode node = TreeViewMobs.SelectedNode;
+            if (node?.Parent == null)
+            {
+                removeToolStripMenuItem.Visible = false;
+                exportAllFramesAsPngToolStripMenuItem.Visible = false;
+                exportAllAnimationsAsPngToolStripMenuItem.Visible = false;
+                return;
+            }
+
+            if (node.Parent.Name == "Mobs" || node.Parent.Name == "Equipment")
+            {
+                // Level 2: Mob/Equipment nodes - show Remove and Export All Animations
+                removeToolStripMenuItem.Visible = true;
+                exportAllFramesAsPngToolStripMenuItem.Visible = false;
+                exportAllAnimationsAsPngToolStripMenuItem.Visible = true;
+            }
+            else if (node.Parent.Parent != null && (node.Parent.Parent.Name == "Mobs" || node.Parent.Parent.Name == "Equipment"))
+            {
+                // Level 3: Animation nodes - show Export All Frames
+                removeToolStripMenuItem.Visible = false;
+                exportAllFramesAsPngToolStripMenuItem.Visible = true;
+                exportAllAnimationsAsPngToolStripMenuItem.Visible = false;
+            }
+            else
+            {
+                removeToolStripMenuItem.Visible = false;
+                exportAllFramesAsPngToolStripMenuItem.Visible = false;
+                exportAllAnimationsAsPngToolStripMenuItem.Visible = false;
+            }
+        }
+
         private void OnClickRemove(object sender, EventArgs e)
         {
             TreeNode node = TreeViewMobs.SelectedNode;
@@ -903,6 +936,154 @@ namespace UoFiddler.Controls.UserControls
 
                 newBitmap.Save($"{fileName}-{(int)listView1.SelectedItems[0].Tag}.{fileExtension}", imageFormat);
             }
+        }
+
+        private void OnClickExportAllFramesAsPng(object sender, EventArgs e)
+        {
+            ExportAllFramesAsSinglePng();
+        }
+
+        private void OnClickExportAllAnimationsAsPng(object sender, EventArgs e)
+        {
+            ExportAllAnimationsAsSinglePngs();
+        }
+
+        private void ExportAllFramesAsSinglePng()
+        {
+            if (MainPictureBox.Frames == null || MainPictureBox.Frames.Count == 0)
+            {
+                return;
+            }
+
+            TreeNode selectedNode = TreeViewMobs.SelectedNode;
+            if (selectedNode?.Parent == null)
+            {
+                return;
+            }
+
+            string mobName = selectedNode.Parent.Text;
+            int parenIndex = mobName.IndexOf(" (");
+            if (parenIndex > 0)
+            {
+                mobName = mobName.Substring(0, parenIndex);
+            }
+            mobName = Path.GetInvalidFileNameChars().Aggregate(mobName, (current, c) => current.Replace(c, '_'));
+
+            int mobType = ((int[])selectedNode.Parent.Tag)[1];
+            string actionName = GetActionNames[mobType][_currentSelectAction];
+            actionName = Path.GetInvalidFileNameChars().Aggregate(actionName, (current, c) => current.Replace(c, '_'));
+
+            string mobFolder = Path.Combine(Options.OutputPath, mobName);
+            Directory.CreateDirectory(mobFolder);
+            string fileName = Path.Combine(mobFolder, $"{mobName}_{actionName}_allframes.png");
+
+            const int tileWidth = 81;
+            const int tileHeight = 110;
+            int frameCount = MainPictureBox.Frames.Count;
+            int totalWidth = tileWidth * frameCount;
+
+            using (Bitmap combinedBitmap = new Bitmap(totalWidth, tileHeight, PixelFormat.Format32bppArgb))
+            {
+                using (Graphics graphics = Graphics.FromImage(combinedBitmap))
+                {
+                    graphics.Clear(Color.Transparent);
+
+                    int currentX = 0;
+                    foreach (var frame in MainPictureBox.Frames)
+                    {
+                        if (frame?.Bitmap != null)
+                        {
+                            // Center the frame within the tile
+                            int offsetX = (tileWidth - frame.Bitmap.Width) / 2;
+                            int offsetY = (tileHeight - frame.Bitmap.Height) / 2;
+                            graphics.DrawImage(frame.Bitmap, currentX + offsetX, offsetY);
+                        }
+                        
+                        currentX += tileWidth;
+                    }
+                }
+
+                combinedBitmap.Save(fileName, ImageFormat.Png);
+            }
+
+            MessageBox.Show($"All frames saved to {fileName}", "Export Complete", MessageBoxButtons.OK,
+                MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
+        }
+
+        private void ExportAllAnimationsAsSinglePngs()
+        {
+            TreeNode selectedNode = TreeViewMobs.SelectedNode;
+            if (selectedNode?.Parent == null || (selectedNode.Parent.Name != "Mobs" && selectedNode.Parent.Name != "Equipment"))
+            {
+                return;
+            }
+
+            string mobName = selectedNode.Text;
+            int parenIndex = mobName.IndexOf(" (");
+            if (parenIndex > 0)
+            {
+                mobName = mobName.Substring(0, parenIndex);
+            }
+            mobName = Path.GetInvalidFileNameChars().Aggregate(mobName, (current, c) => current.Replace(c, '_'));
+
+            string mobFolder = Path.Combine(Options.OutputPath, mobName);
+            Directory.CreateDirectory(mobFolder);
+
+            int mobId = ((int[])selectedNode.Tag)[0];
+            int mobType = ((int[])selectedNode.Tag)[1];
+            int exportedCount = 0;
+
+            for (int actionIndex = 0; actionIndex < GetActionNames[mobType].Length; actionIndex++)
+            {
+                if (!Animations.IsActionDefined(mobId, actionIndex, _facing))
+                {
+                    continue;
+                }
+
+                var frames = Animations.GetAnimation(mobId, actionIndex, _facing, ref _defHue, false, false);
+                if (frames == null || frames.Length == 0)
+                {
+                    continue;
+                }
+
+                string actionName = GetActionNames[mobType][actionIndex];
+                actionName = Path.GetInvalidFileNameChars().Aggregate(actionName, (current, c) => current.Replace(c, '_'));
+
+                string fileName = Path.Combine(mobFolder, $"{mobName}_{actionName}_allframes.png");
+
+                const int tileWidth = 81;
+                const int tileHeight = 110;
+                int frameCount = frames.Length;
+                int totalWidth = tileWidth * frameCount;
+
+                using (Bitmap combinedBitmap = new Bitmap(totalWidth, tileHeight, PixelFormat.Format32bppArgb))
+                {
+                    using (Graphics graphics = Graphics.FromImage(combinedBitmap))
+                    {
+                        graphics.Clear(Color.Transparent);
+
+                        int currentX = 0;
+                        foreach (var frame in frames)
+                        {
+                            if (frame?.Bitmap != null)
+                            {
+                                // Center the frame within the tile
+                                int offsetX = (tileWidth - frame.Bitmap.Width) / 2;
+                                int offsetY = (tileHeight - frame.Bitmap.Height) / 2;
+                                graphics.DrawImage(frame.Bitmap, currentX + offsetX, offsetY);
+                            }
+                            
+                            currentX += tileWidth;
+                        }
+                    }
+
+                    combinedBitmap.Save(fileName, ImageFormat.Png);
+                    exportedCount++;
+                }
+            }
+
+            MessageBox.Show($"Exported {exportedCount} animations to {mobFolder}", "Export Complete", MessageBoxButtons.OK,
+                MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
         }
 
         private void ExportAnimatedGif(bool looping)
