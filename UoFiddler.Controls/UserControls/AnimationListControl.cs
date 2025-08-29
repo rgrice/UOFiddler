@@ -950,11 +950,6 @@ namespace UoFiddler.Controls.UserControls
 
         private void ExportAllFramesAsSinglePng()
         {
-            if (MainPictureBox.Frames == null || MainPictureBox.Frames.Count == 0)
-            {
-                return;
-            }
-
             TreeNode selectedNode = TreeViewMobs.SelectedNode;
             if (selectedNode?.Parent == null)
             {
@@ -969,90 +964,37 @@ namespace UoFiddler.Controls.UserControls
             }
             mobName = Path.GetInvalidFileNameChars().Aggregate(mobName, (current, c) => current.Replace(c, '_'));
 
+            int mobId = ((int[])selectedNode.Parent.Tag)[0];
             int mobType = ((int[])selectedNode.Parent.Tag)[1];
             string actionName = GetActionNames[mobType][_currentSelectAction];
             actionName = Path.GetInvalidFileNameChars().Aggregate(actionName, (current, c) => current.Replace(c, '_'));
 
             string mobFolder = Path.Combine(Options.OutputPath, mobName);
-            Directory.CreateDirectory(mobFolder);
-            string fileName = Path.Combine(mobFolder, $"{mobName}_{actionName}_allframes.png");
+            string actionFolder = Path.Combine(mobFolder, actionName);
+            Directory.CreateDirectory(actionFolder);
 
             const int tileWidth = 81;
             const int tileHeight = 110;
-            int frameCount = MainPictureBox.Frames.Count;
-            int totalWidth = tileWidth * frameCount;
-
-            using (Bitmap combinedBitmap = new Bitmap(totalWidth, tileHeight, PixelFormat.Format32bppArgb))
-            {
-                using (Graphics graphics = Graphics.FromImage(combinedBitmap))
-                {
-                    graphics.Clear(Color.Transparent);
-
-                    int currentX = 0;
-                    foreach (var frame in MainPictureBox.Frames)
-                    {
-                        if (frame?.Bitmap != null)
-                        {
-                            // Center the frame within the tile
-                            int offsetX = (tileWidth - frame.Bitmap.Width) / 2;
-                            int offsetY = (tileHeight - frame.Bitmap.Height) / 2;
-                            graphics.DrawImage(frame.Bitmap, currentX + offsetX, offsetY);
-                        }
-                        
-                        currentX += tileWidth;
-                    }
-                }
-
-                combinedBitmap.Save(fileName, ImageFormat.Png);
-            }
-
-            MessageBox.Show($"All frames saved to {fileName}", "Export Complete", MessageBoxButtons.OK,
-                MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
-        }
-
-        private void ExportAllAnimationsAsSinglePngs()
-        {
-            TreeNode selectedNode = TreeViewMobs.SelectedNode;
-            if (selectedNode?.Parent == null || (selectedNode.Parent.Name != "Mobs" && selectedNode.Parent.Name != "Equipment"))
-            {
-                return;
-            }
-
-            string mobName = selectedNode.Text;
-            int parenIndex = mobName.IndexOf(" (");
-            if (parenIndex > 0)
-            {
-                mobName = mobName.Substring(0, parenIndex);
-            }
-            mobName = Path.GetInvalidFileNameChars().Aggregate(mobName, (current, c) => current.Replace(c, '_'));
-
-            string mobFolder = Path.Combine(Options.OutputPath, mobName);
-            Directory.CreateDirectory(mobFolder);
-
-            int mobId = ((int[])selectedNode.Tag)[0];
-            int mobType = ((int[])selectedNode.Tag)[1];
             int exportedCount = 0;
+            int skippedCount = 0;
 
-            for (int actionIndex = 0; actionIndex < GetActionNames[mobType].Length; actionIndex++)
+            // Export all 8 directions (0-7)
+            for (int direction = 0; direction < 8; direction++)
             {
-                if (!Animations.IsActionDefined(mobId, actionIndex, _facing))
+                if (!Animations.IsActionDefined(mobId, _currentSelectAction, direction))
                 {
+                    skippedCount++;
                     continue;
                 }
 
-                var frames = Animations.GetAnimation(mobId, actionIndex, _facing, ref _defHue, false, false);
+                var frames = Animations.GetAnimation(mobId, _currentSelectAction, direction, ref _defHue, false, false);
                 if (frames == null || frames.Length == 0)
                 {
+                    skippedCount++;
                     continue;
                 }
 
-                string actionName = GetActionNames[mobType][actionIndex];
-                actionName = Path.GetInvalidFileNameChars().Aggregate(actionName, (current, c) => current.Replace(c, '_'));
-
-                string fileName = Path.Combine(mobFolder, $"{mobName}_{actionName}_allframes.png");
-
-                const int tileWidth = 81;
-                const int tileHeight = 110;
+                string fileName = Path.Combine(actionFolder, $"{actionName}_{direction}_allframes.png");
                 int frameCount = frames.Length;
                 int totalWidth = tileWidth * frameCount;
 
@@ -1082,8 +1024,112 @@ namespace UoFiddler.Controls.UserControls
                 }
             }
 
-            MessageBox.Show($"Exported {exportedCount} animations to {mobFolder}", "Export Complete", MessageBoxButtons.OK,
-                MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
+            MessageBox.Show($"Exported {exportedCount} directions to {actionFolder}\n{skippedCount} directions were skipped (not defined)", 
+                "Export Complete", MessageBoxButtons.OK, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
+        }
+
+        private void ExportAllAnimationsAsSinglePngs()
+        {
+            TreeNode selectedNode = TreeViewMobs.SelectedNode;
+            if (selectedNode?.Parent == null || (selectedNode.Parent.Name != "Mobs" && selectedNode.Parent.Name != "Equipment"))
+            {
+                return;
+            }
+
+            string mobName = selectedNode.Text;
+            int parenIndex = mobName.IndexOf(" (");
+            if (parenIndex > 0)
+            {
+                mobName = mobName.Substring(0, parenIndex);
+            }
+            mobName = Path.GetInvalidFileNameChars().Aggregate(mobName, (current, c) => current.Replace(c, '_'));
+
+            string mobFolder = Path.Combine(Options.OutputPath, mobName);
+            Directory.CreateDirectory(mobFolder);
+
+            int mobId = ((int[])selectedNode.Tag)[0];
+            int mobType = ((int[])selectedNode.Tag)[1];
+            int exportedCount = 0;
+            int skippedCount = 0;
+
+            const int tileWidth = 81;
+            const int tileHeight = 110;
+
+            // Export all animations for all directions
+            for (int actionIndex = 0; actionIndex < GetActionNames[mobType].Length; actionIndex++)
+            {
+                string actionName = GetActionNames[mobType][actionIndex];
+                actionName = Path.GetInvalidFileNameChars().Aggregate(actionName, (current, c) => current.Replace(c, '_'));
+
+                string actionFolder = Path.Combine(mobFolder, actionName);
+                bool actionHasFrames = false;
+
+                // Check if any direction has frames for this action
+                for (int direction = 0; direction < 8; direction++)
+                {
+                    if (Animations.IsActionDefined(mobId, actionIndex, direction))
+                    {
+                        actionHasFrames = true;
+                        break;
+                    }
+                }
+
+                if (!actionHasFrames)
+                {
+                    continue;
+                }
+
+                Directory.CreateDirectory(actionFolder);
+
+                // Export all 8 directions for this action
+                for (int direction = 0; direction < 8; direction++)
+                {
+                    if (!Animations.IsActionDefined(mobId, actionIndex, direction))
+                    {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    var frames = Animations.GetAnimation(mobId, actionIndex, direction, ref _defHue, false, false);
+                    if (frames == null || frames.Length == 0)
+                    {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    string fileName = Path.Combine(actionFolder, $"{actionName}_{direction}_allframes.png");
+                    int frameCount = frames.Length;
+                    int totalWidth = tileWidth * frameCount;
+
+                    using (Bitmap combinedBitmap = new Bitmap(totalWidth, tileHeight, PixelFormat.Format32bppArgb))
+                    {
+                        using (Graphics graphics = Graphics.FromImage(combinedBitmap))
+                        {
+                            graphics.Clear(Color.Transparent);
+
+                            int currentX = 0;
+                            foreach (var frame in frames)
+                            {
+                                if (frame?.Bitmap != null)
+                                {
+                                    // Center the frame within the tile
+                                    int offsetX = (tileWidth - frame.Bitmap.Width) / 2;
+                                    int offsetY = (tileHeight - frame.Bitmap.Height) / 2;
+                                    graphics.DrawImage(frame.Bitmap, currentX + offsetX, offsetY);
+                                }
+                                
+                                currentX += tileWidth;
+                            }
+                        }
+
+                        combinedBitmap.Save(fileName, ImageFormat.Png);
+                        exportedCount++;
+                    }
+                }
+            }
+
+            MessageBox.Show($"Exported {exportedCount} animation directions to {mobFolder}\n{skippedCount} directions were skipped (not defined)", 
+                "Export Complete", MessageBoxButtons.OK, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
         }
 
         private void ExportAnimatedGif(bool looping)
